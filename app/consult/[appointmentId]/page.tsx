@@ -1,4 +1,6 @@
 import VideoRoom from "@/components/VideoRoom";
+import { getDemoRoleFromCookies, isDemoMode } from "@/lib/demoMode";
+import { getDemoAppointment } from "@/lib/demoStore";
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 
@@ -7,6 +9,27 @@ interface Props {
 }
 
 export default async function ConsultPage({ params }: Props) {
+  if (isDemoMode()) {
+    const role = await getDemoRoleFromCookies();
+    if (!role) redirect("/login");
+
+    const appointment = await getDemoAppointment(params.appointmentId);
+    if (!appointment) notFound();
+
+    const redirectPath = role === "doctor" ? "/doctor" : "/patient";
+
+    return (
+      <div className="min-h-screen bg-slate-950 p-4 sm:p-6">
+        <VideoRoom
+          appointmentId={params.appointmentId}
+          role={role}
+          redirectPath={redirectPath}
+          demoMode
+        />
+      </div>
+    );
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

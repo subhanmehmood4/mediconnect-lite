@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildRoomName, createMeetingToken, getOrCreateRoom } from "@/lib/daily";
+import { getDemoRoleFromCookies, isDemoMode } from "@/lib/demoMode";
+import { getDemoAppointment, updateDemoAppointment } from "@/lib/demoStore";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { isDailyConfigured } from "@/lib/env";
@@ -12,6 +14,30 @@ export async function POST(request: Request) {
       { error: "Too many requests. Try again shortly." },
       { status: 429, headers: { "Retry-After": String(limited.retryAfter) } }
     );
+  }
+
+  const { appointmentId } = (await request.json()) as { appointmentId?: string };
+  if (!appointmentId) {
+    return NextResponse.json({ error: "appointmentId required" }, { status: 400 });
+  }
+
+  if (isDemoMode()) {
+    const role = await getDemoRoleFromCookies();
+    if (!role) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const appointment = await getDemoAppointment(appointmentId);
+    if (!appointment) {
+      return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+    }
+
+    await updateDemoAppointment(appointmentId, { status: "in_progress" });
+
+    return NextResponse.json({
+      demoMode: true,
+      mockVideo: !isDailyConfigured(),
+    });
   }
 
   if (!isDailyConfigured()) {
@@ -30,14 +56,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { appointmentId } = (await request.json()) as { appointmentId?: string };
-  if (!appointmentId) {
-    return NextResponse.json({ error: "appointmentId required" }, { status: 400 });
-  }
-
   const { data: appointment, error: fetchError } = await supabase
     .from("appointments")
-    .select("*, patient:profiles!appointments_patient_id_fkey(full_name), doctor:profiles!appointments_doctor_id_fkey(full_name)")
+    .select("*")
     .eq("id", appointmentId)
     .maybeSingle();
 
@@ -69,7 +90,6 @@ export async function POST(request: Request) {
         status: "in_progress",
       })
       .eq("id", appointmentId);
-    roomName = room.name;
 
     const token = await createMeetingToken(
       room.name,

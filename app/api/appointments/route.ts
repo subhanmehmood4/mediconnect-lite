@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+import { getDemoRoleFromCookies, isDemoMode } from "@/lib/demoMode";
+import {
+  addDemoPrescription,
+  createDemoAppointment,
+  getDemoAppointments,
+  updateDemoAppointment,
+} from "@/lib/demoStore";
 import { createClient } from "@/lib/supabase/server";
 
 const APPOINTMENT_SELECT = `
@@ -8,6 +15,15 @@ const APPOINTMENT_SELECT = `
 `;
 
 export async function GET(request: Request) {
+  if (isDemoMode()) {
+    const role = await getDemoRoleFromCookies();
+    if (!role) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const appointments = await getDemoAppointments(role);
+    return NextResponse.json({ appointments });
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -55,15 +71,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const body = (await request.json()) as {
     doctorId?: string;
     scheduledAt?: string;
@@ -74,6 +81,27 @@ export async function POST(request: Request) {
       { error: "doctorId and scheduledAt required" },
       { status: 400 }
     );
+  }
+
+  if (isDemoMode()) {
+    const role = await getDemoRoleFromCookies();
+    if (role !== "patient") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const appointment = await createDemoAppointment({
+      doctorId: body.doctorId,
+      scheduledAt: body.scheduledAt,
+    });
+    return NextResponse.json({ appointment });
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { data, error } = await supabase
@@ -95,15 +123,6 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const body = (await request.json()) as {
     appointmentId?: string;
     status?: string;
@@ -118,6 +137,41 @@ export async function PATCH(request: Request) {
 
   if (!body.appointmentId) {
     return NextResponse.json({ error: "appointmentId required" }, { status: 400 });
+  }
+
+  if (isDemoMode()) {
+    const role = await getDemoRoleFromCookies();
+    if (!role) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (body.status) {
+      await updateDemoAppointment(body.appointmentId, { status: body.status as "completed" });
+    }
+
+    if (body.prescription && role === "doctor") {
+      await addDemoPrescription({
+        appointmentId: body.appointmentId,
+        patientId: body.prescription.patientId,
+        medication: body.prescription.medication,
+        dosage: body.prescription.dosage,
+        instructions: body.prescription.instructions,
+        notes: body.notes,
+      });
+    } else if (body.notes) {
+      await updateDemoAppointment(body.appointmentId, { notes: body.notes });
+    }
+
+    return NextResponse.json({ ok: true });
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { data: appointment } = await supabase

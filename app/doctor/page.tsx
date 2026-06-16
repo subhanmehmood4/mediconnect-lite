@@ -1,49 +1,66 @@
 import AppointmentCard from "@/components/AppointmentCard";
 import Link from "next/link";
+import { isDemoMode } from "@/lib/demoMode";
+import { getDemoAppointments } from "@/lib/demoStore";
 import { createClient } from "@/lib/supabase/server";
 import type { Appointment } from "@/lib/types";
 
 export default async function DoctorDashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let allAppts: Appointment[] = [];
+
+  if (isDemoMode()) {
+    allAppts = await getDemoAppointments("doctor");
+  } else {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    const { data: todayAppts } = await supabase
+      .from("appointments")
+      .select(
+        `*, patient:profiles!appointments_patient_id_fkey(id, full_name, role, specialty)`
+      )
+      .eq("doctor_id", user!.id)
+      .gte("scheduled_at", start.toISOString())
+      .lte("scheduled_at", end.toISOString())
+      .order("scheduled_at", { ascending: true });
+
+    const { data } = await supabase
+      .from("appointments")
+      .select(
+        `*, patient:profiles!appointments_patient_id_fkey(id, full_name, role, specialty)`
+      )
+      .eq("doctor_id", user!.id)
+      .order("scheduled_at", { ascending: true });
+
+    allAppts = (data as Appointment[] | null) ?? [];
+    void todayAppts;
+  }
 
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date();
   end.setHours(23, 59, 59, 999);
 
-  const { data: todayAppts } = await supabase
-    .from("appointments")
-    .select(
-      `*, patient:profiles!appointments_patient_id_fkey(id, full_name, role, specialty)`
-    )
-    .eq("doctor_id", user!.id)
-    .gte("scheduled_at", start.toISOString())
-    .lte("scheduled_at", end.toISOString())
-    .order("scheduled_at", { ascending: true });
+  const today = allAppts.filter((a) => {
+    const t = new Date(a.scheduled_at).getTime();
+    return t >= start.getTime() && t <= end.getTime();
+  });
 
-  const { data: allAppts } = await supabase
-    .from("appointments")
-    .select(
-      `*, patient:profiles!appointments_patient_id_fkey(id, full_name, role, specialty)`
-    )
-    .eq("doctor_id", user!.id)
-    .order("scheduled_at", { ascending: true });
-
-  const today = (todayAppts as Appointment[] | null) ?? [];
-  const upcoming =
-    (allAppts as Appointment[] | null)?.filter(
-      (a) =>
-        a.status !== "completed" &&
-        a.status !== "cancelled" &&
-        !today.find((t) => t.id === a.id)
-    ) ?? [];
-
-  const patientIds = new Set(
-    (allAppts ?? []).map((a: Appointment) => a.patient_id)
+  const upcoming = allAppts.filter(
+    (a) =>
+      a.status !== "completed" &&
+      a.status !== "cancelled" &&
+      !today.find((t) => t.id === a.id)
   );
+
+  const patientIds = new Set(allAppts.map((a) => a.patient_id));
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">

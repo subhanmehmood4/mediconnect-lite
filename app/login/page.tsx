@@ -48,6 +48,12 @@ function LoginForm() {
     setLoading(true);
     setError(null);
 
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      setError("Email login needs Supabase. Use Enter as Patient or Doctor for the offline demo.");
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
 
     try {
@@ -121,7 +127,8 @@ function LoginForm() {
 
           <p className="mt-4 rounded-xl bg-slate-900/80 p-3 text-xs leading-relaxed text-slate-500">
             To test video: open this page in two windows — log in as Patient in one
-            and Doctor in the other, then join the same appointment.
+            and Doctor in the other, then join the same appointment. Works without Supabase
+            in offline demo mode.
           </p>
 
           <div className="my-6 flex items-center gap-3">

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 interface NavItem {
@@ -15,6 +14,7 @@ interface AppShellProps {
   userEmail?: string | null;
   userName?: string | null;
   navItems: NavItem[];
+  demoMode?: boolean;
   children: React.ReactNode;
 }
 
@@ -23,14 +23,14 @@ export default function AppShell({
   userEmail,
   userName,
   navItems,
+  demoMode = false,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
   }
@@ -65,6 +65,11 @@ export default function AppShell({
             );
           })}
         </nav>
+        {demoMode && (
+          <p className="mx-4 mt-4 rounded-xl border border-violet-500/20 bg-violet-500/5 p-3 text-[11px] leading-relaxed text-violet-200/80">
+            Offline demo — sample data only. No Supabase required.
+          </p>
+        )}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -76,6 +81,11 @@ export default function AppShell({
           <div className="hidden text-sm text-slate-400 lg:block">
             Signed in as{" "}
             <span className="text-white">{userName ?? userEmail ?? "User"}</span>
+            {demoMode && (
+              <span className="ml-2 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-mono uppercase text-violet-300">
+                Demo
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <div className="flex gap-1 lg:hidden">

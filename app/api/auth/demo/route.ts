@@ -1,10 +1,31 @@
-import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import {
+  DEMO_ROLE_COOKIE,
+  demoRoleCookieOptions,
+  isDemoMode,
+} from "@/lib/demoMode";
 import { getDemoCredentials } from "@/lib/env";
 import type { UserRole } from "@/lib/types";
 
 export async function POST(request: Request) {
+  let role: UserRole = "patient";
+  try {
+    const body = (await request.json()) as { role?: UserRole };
+    if (body.role === "doctor" || body.role === "patient") {
+      role = body.role;
+    }
+  } catch {
+    // default patient
+  }
+
+  if (isDemoMode()) {
+    const response = NextResponse.json({ ok: true, role, demoMode: true });
+    response.cookies.set(DEMO_ROLE_COOKIE, role, demoRoleCookieOptions);
+    return response;
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -16,16 +37,6 @@ export async function POST(request: Request) {
       },
       { status: 503 }
     );
-  }
-
-  let role: UserRole = "patient";
-  try {
-    const body = (await request.json()) as { role?: UserRole };
-    if (body.role === "doctor" || body.role === "patient") {
-      role = body.role;
-    }
-  } catch {
-    // default patient
   }
 
   const cookieStore = await cookies();
@@ -53,7 +64,7 @@ export async function POST(request: Request) {
   if (!credentials) {
     return NextResponse.json(
       {
-        error: `Demo ${role} credentials not configured. Set DEMO_${role.toUpperCase()}_EMAIL and DEMO_${role.toUpperCase()}_PASSWORD.`,
+        error: `Demo ${role} credentials not configured. Set DEMO_PATIENT_EMAIL / DEMO_DOCTOR_EMAIL env vars.`,
       },
       { status: 503 }
     );

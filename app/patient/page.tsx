@@ -1,26 +1,33 @@
 import AppointmentCard from "@/components/AppointmentCard";
 import Link from "next/link";
+import { isDemoMode } from "@/lib/demoMode";
+import { getDemoAppointments } from "@/lib/demoStore";
 import { createClient } from "@/lib/supabase/server";
 import type { Appointment } from "@/lib/types";
 
 export default async function PatientDashboardPage() {
-  const supabase = await createClient();
-  const { data: appointments } = await supabase
-    .from("appointments")
-    .select(
-      `*, doctor:profiles!appointments_doctor_id_fkey(id, full_name, role, specialty)`
-    )
-    .order("scheduled_at", { ascending: true });
+  let appointments: Appointment[] | null = [];
+
+  if (isDemoMode()) {
+    appointments = await getDemoAppointments("patient");
+  } else {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("appointments")
+      .select(
+        `*, doctor:profiles!appointments_doctor_id_fkey(id, full_name, role, specialty)`
+      )
+      .order("scheduled_at", { ascending: true });
+    appointments = data as Appointment[] | null;
+  }
 
   const upcoming =
-    (appointments as Appointment[] | null)?.filter(
+    appointments?.filter(
       (a) => a.status !== "completed" && a.status !== "cancelled"
     ) ?? [];
 
   const past =
-    (appointments as Appointment[] | null)?.filter(
-      (a) => a.status === "completed"
-    ) ?? [];
+    appointments?.filter((a) => a.status === "completed") ?? [];
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">

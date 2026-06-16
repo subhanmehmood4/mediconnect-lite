@@ -1,4 +1,6 @@
 import AppShell from "@/components/AppShell";
+import { getDemoRoleFromCookies, isDemoMode } from "@/lib/demoMode";
+import { DEMO_PATIENT } from "@/lib/demoStore";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -13,6 +15,23 @@ export default async function PatientLayout({
 }: {
   children: React.ReactNode;
 }) {
+  if (isDemoMode()) {
+    const role = await getDemoRoleFromCookies();
+    if (role !== "patient") redirect("/login");
+
+    return (
+      <AppShell
+        role="patient"
+        userEmail="patient@mediconnect.demo"
+        userName={DEMO_PATIENT.full_name}
+        navItems={NAV}
+        demoMode
+      >
+        {children}
+      </AppShell>
+    );
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

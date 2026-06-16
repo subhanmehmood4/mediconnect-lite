@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
+import { getDemoRoleFromCookies, isDemoMode } from "@/lib/demoMode";
+import { DEMO_PATIENT_ID, getDemoRecords } from "@/lib/demoStore";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
+  if (isDemoMode()) {
+    const role = await getDemoRoleFromCookies();
+    if (!role) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { records, prescriptions } = await getDemoRecords(DEMO_PATIENT_ID);
+    return NextResponse.json({ records, prescriptions });
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
