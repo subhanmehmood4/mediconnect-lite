@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #030712;
+  --foreground: #f8fafc;
+  --card: #0f172a;
+  --border: #1e293b;
+  --accent: #a78bfa;
+  --accent-muted: #8b5cf6;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+  }
+
+  .glass-card {
+    @apply rounded-2xl border border-slate-800/80 bg-slate-900/60 backdrop-blur-sm;
+  }
+}
